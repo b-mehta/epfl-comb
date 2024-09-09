@@ -23,6 +23,7 @@ Do the following:
    `cd epfl-comb`.
    The remaining steps can be followed as written, but be sure to choose the folder `epfl-comb`
    when you `Open folder` in VSCode. You can check you are in the correct folder if `lakefile.lean` if the Explorer tab on the left looks like this.
+
    ![explorer tab](EPFL/folder_view.png)
 
 4. Each section in the textbook has an associated Lean file with examples and exercises.
