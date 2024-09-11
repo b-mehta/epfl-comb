@@ -20,7 +20,7 @@ open Real
 -- We can also make our own expressions, and give them names
 def myFavouriteNumber : ℕ := 7
 
-def yourFavouriteNumber : ℕ := sorry
+def yourFavouriteNumber : ℕ := 2
 -- sorry works as a placeholder
 
 #check myFavouriteNumber
@@ -87,7 +87,7 @@ example : 4 ^ 25 < 3 ^ 39 := by norm_num
 open Nat
 
 -- Simple tactics
-example (a b : ℕ) : a + b = b + a := by exact Nat.add_comm a b
+example (a b : ℝ) : a + b = b + a := by exact add_comm a b
 example : 3 = 3 := by rfl
 
 #check add_mul (R := ℕ)
@@ -97,44 +97,81 @@ example (a b : ℕ) : a + a * b = (b + 1) * a := by
   rw [add_mul b 1 a, one_mul a, add_comm a (a * b), mul_comm a b]
   --> S01_Calculating.lean has many examples and some more information about using `rw`
 
+open Nat
+
 theorem Euclid_Thm (n : ℕ) : ∃ p, n ≤ p ∧ Nat.Prime p := by
-  let p := minFac (Nat.factorial n + 1)
-  have f1 : factorial n + 1 ≠ 1 := Nat.ne_of_gt <| Nat.succ_lt_succ <| factorial_pos _
-  have pp : Nat.Prime p := minFac_prime f1
+  let p := minFac (n ! + 1)
+  have hn : n ! ≠ 0 := by exact factorial_ne_zero n
+  have f1 : n ! + 1 ≠ 1 := by simp [hn]
+  have pp : Nat.Prime p := by exact minFac_prime f1
   have np : n ≤ p :=
-    le_of_not_ge fun h =>
-      have h₁ : p ∣ factorial n := dvd_factorial (minFac_pos _) h
-      have h₂ : p ∣ 1 := (Nat.dvd_add_iff_right h₁).2 (minFac_dvd _)
-      pp.not_dvd_one h₂
+    le_of_not_ge fun h ↦ by
+      have h₁ : p ∣ factorial n := by exact (Prime.dvd_factorial pp).mpr h
+      have h₂ : p ∣ 1 := by
+        refine (Nat.dvd_add_iff_right h₁).mpr ?_
+        exact minFac_dvd (n ! + 1)
+      rw [@dvd_one] at h₂
+      simp_all only [ne_eq, add_left_eq_self, not_false_eq_true, ge_iff_le, minFac_eq_one_iff, p]
   exact ⟨p, np, pp⟩
 
 theorem Ugly_Euclid_Thm (n : ℕ) : ∃ p, n ≤ p ∧ Nat.Prime p :=
   have pp := minFac_prime (add_left_ne_self.2 (factorial_pos n).ne')
-  ⟨_, le_of_not_le fun h => pp.not_dvd_one ((Nat.dvd_add_iff_right (dvd_factorial pp.pos h)).2
+  ⟨_, le_of_not_le fun h ↦ pp.not_dvd_one ((Nat.dvd_add_iff_right (dvd_factorial pp.pos h)).2
     (minFac_dvd _)), pp⟩
 
 -- The proof doesn't matter
 example : Euclid_Thm = Ugly_Euclid_Thm := rfl
 -- *to Lean*
 
-  --> S02_Overview.lean has more examples of tactic proofs
+noncomputable def minFac' (n : ℕ) : ℕ :=
+  sInf {p : ℕ | p ∣ n ∧ Nat.Prime p}
+
+lemma minFac'_one : minFac' 1 = 0 := by
+  rw [minFac']
+  simp
+  aesop
+
+  --> S02_Inequalities.lean has more examples of tactic proofs
 
 -- Some tactics can self-replace
-theorem Easy_Euclid_Thm (n : ℕ) : ∃ p, n ≤ p ∧ Nat.Prime p := by exact?
+theorem Easy_Euclid_Thm (n : ℕ) : ∃ p, n ≤ p ∧ Nat.Prime p := by exact Euclid_Thm n
 
-example (a b : ℕ) : a + a * b = (b + 1) * a := by
-  rw?
-  sorry
+example (a b c : ℕ) : a * b * c = a * c * b := by
+  ring
+
+  -- rw [Nat.right_distrib]
+  -- rw [Nat.one_mul]
+  -- rw [Nat.add_comm]
+  -- rw [Nat.mul_comm]
+
+
+/- ###  λ notation:
+In Lean, functions are defined using `fun` expressions:
+`fun x ↦ f x` is a function that maps `x` to `f (x)`
+-/
+
+def α : ℕ → ℕ := fun n ↦ n ^ 2 + 3
+def α' (n : ℕ) : ℕ := n^2 + 3 -- `f(n) = n^2 + 3`
+
+-- We can also use the keyword `λ` instead of `fun`
+
+def α'' : ℕ → ℕ := λ n ↦ n^2 + 3
+
+example : α 3 = 12 := by
+  -- rw [α]
+  norm_num
 
 -- # Some more difficult proofs
 def myFactorial : ℕ → ℕ
-| 0 => 1
-| (n + 1) => (n + 1) * myFactorial n
+  | 0 => 1
+  | n + 1 => (n + 1) * myFactorial n
 
-#check (myFactorial : ℕ → ℕ)
+#eval 3 / 0 * 0
+
+#check myFactorial
 
 -- Lean can compute too!
-#eval myFactorial 10
+-- #eval myFactorial 10
 -- sometimes useful for sanity-checking definitions
 
 theorem myFactorial_add_one (n : ℕ) : myFactorial (n + 1) = (n + 1) * myFactorial n := rfl
@@ -147,22 +184,25 @@ theorem myFactorial_pos (n : ℕ) : 0 < myFactorial n := by
     simp
   case succ n ih =>
     rw [myFactorial_add_one]
-    apply mul_pos
-    · exact succ_pos n
-    · exact ih
+    positivity
+
+-- Follow-up about the definition of `minFac`!
 
 -- # Personal note: this scales!
-open BigOperators
 
-def upper_density (A : Set ℕ) : ℝ := sorry
+noncomputable def upper_density (A : Set ℕ) : ℝ := 0
 
 theorem bloom (A : Set ℕ) (hA : 0 < upper_density A) :
-  ∃ B : Finset ℕ, ↑B ⊆ A ∧ ∑ i in B, (1 / i : ℚ) = 1 := sorry
+    ∃ B : Finset ℕ, B.toSet ⊆ A ∧ ∑ i in B, (1 / i : ℚ) = 1 := by
+  rw [upper_density] at hA
+  aesop
 
-def diagonal_ramsey (k : ℕ) : ℕ := sorry
+def diagonal_ramsey (k : ℕ) : ℕ :=
+  sorry
 
 theorem campos_griffiths_morris_sahasrabudhe :
-  ∃ c : ℝ, 0 < c ∧ ∀ k, diagonal_ramsey k ≤ (4 - c) ^ k := sorry
+    ∃ c : ℝ, 0 < c ∧ ∀ k, diagonal_ramsey k ≤ (4 - c) ^ k := by
+  aesop
 
 -- Expressions and types, every expression has a type
 -- A proof has type given by what it's proved!
@@ -173,12 +213,14 @@ theorem campos_griffiths_morris_sahasrabudhe :
   -- apply
   -- simp
   -- induction
+  -- have
 
   -- ring, norm_num, positivity, linarith
   -- refine
 
   -- calc
 
+example (n : Finset ℕ) : Set ℝ := (n : Set ℕ)
 
 -- # Footnotes
 
@@ -196,8 +238,8 @@ example (n : ℕ) : Fintype.card (Fin n) = n := by simp?
 
 -- ## hierarchy!
 #check 3
-#check 4 = 4
 #check ℕ
+#check 4 = 4
 #check Prop
 #check Type
 #check Type 1
